@@ -82,15 +82,14 @@ jobs:
       - name: Deploy Azure WebApp via Bicep
         id: deploywebapp
         run: |
-          az deployment group create \
+          # Executa o deployment e já captura o webAppName diretamente
+          WEBAPP_NAME=$(az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --template-file ./bicep-template/webapp.bicep \
             --parameters location=${{ env.LOCATION }} \
             --mode Incremental \
-            -o json > deployment-output.json
+            --query "properties.outputs.webAppName.value" -o tsv)
 
-          # Extract webAppName from Bicep output JSON
-          WEBAPP_NAME=$(jq -r '.properties.outputs.webAppName.value' deployment-output.json)
           echo "webAppName=$WEBAPP_NAME" >> $GITHUB_OUTPUT
 
       - name: Publish Website to WebApp
