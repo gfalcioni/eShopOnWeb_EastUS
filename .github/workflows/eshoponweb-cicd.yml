@@ -9,7 +9,7 @@ env:
   RESOURCE_GROUP: rg-eshoponweb-eastus3
   LOCATION: eastus
   TEMPLATE_FILE: infra/webapp.bicep
-  SUBSCRIPTION_ID: a94f2344-3f49-4d2c-801a-53bd6d540d09
+  SUBSCRIPTION_ID: secrets.AZURE_ID
   WEBAPP_NAME: eshoponweb-eastus   # nome fixo determinístico
 
 # =========================================================
