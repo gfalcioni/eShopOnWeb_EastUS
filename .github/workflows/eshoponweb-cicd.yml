@@ -79,7 +79,6 @@ jobs:
 
       - name: Deploy Azure WebApp via Bicep
         run: |
-          # Deploy sem tentar capturar output JSON
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --template-file ./bicep-template/webapp.bicep \
