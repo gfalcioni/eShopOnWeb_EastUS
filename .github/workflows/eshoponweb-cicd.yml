@@ -130,7 +130,7 @@ jobs:
       with:
         subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         resourceGroupName: ${{ env.RESOURCE_GROUP }}
-        template: bicep-template/webapp.bicep
+        template: bicep-template/infra/webapp.bicep
         deploymentMode: Incremental
         parameters: location=${{ env.LOCATION }}
 
