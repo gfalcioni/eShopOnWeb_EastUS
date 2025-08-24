@@ -108,6 +108,10 @@ jobs:
       with:
         name: bicep-template
         path: bicep-template
+
+    - name: List files in bicep-template
+      run: ls -R bicep-template
+
         
     # --------------------------
     # Authenticate to Azure using Service Principal
