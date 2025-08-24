@@ -1,105 +1,155 @@
+# =========================================================
+# GitHub Actions Workflow - Build, Test, Deploy .NET + Bicep
+# =========================================================
 name: eShopOnWeb Build and Test eastus
 
-#Triggers (uncomment line below to use it)
+# ---------------------------------------------------------
+# Triggers: when the workflow will run
+# - on each push to the repo
+# - or manually via workflow_dispatch
+# ---------------------------------------------------------
 on: [push, workflow_dispatch]
 
-#Environment variables https://docs.github.com/en/actions/learn-github-actions/environment-variables
+# ---------------------------------------------------------
+# Environment variables (shared across jobs)
+# These make it easier to avoid repeating values
+# ---------------------------------------------------------
 env:
   RESOURCE_GROUP: rg-eshoponweb-eastus2
   LOCATION: eastus
   TEMPLATE_FILE: infra/webapp.bicep
   SUBSCRIPTION_ID: a94f2344-3f49-4d2c-801a-53bd6d540d09
-  WEBAPP_NAME: devops-webapp-eastus-3185517919
 
-
+# =========================================================
+# Job 1: Build and Test the .NET project
+# =========================================================
 jobs:
-  #Build, test and publish .net web project in repository
   buildandtest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   # runner machine image
     steps:
-    #checkout the repository
+    # --------------------------
+    # Checkout repository code
+    # --------------------------
     - uses: actions/checkout@v4
-    #prepare runner for desired .net version SDK
+
+    # --------------------------
+    # Setup .NET SDK (8.0.x)
+    # --------------------------
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
         dotnet-quality: 'preview'
-    #Build/Test/Publish the .net project
+
+    # --------------------------
+    # Build the solution
+    # --------------------------
     - name: Build with dotnet
       run: dotnet build ./eShopOnWeb.sln --configuration Release
+
+    # --------------------------
+    # Run tests
+    # --------------------------
     - name: Test with dotnet
       run: dotnet test ./eShopOnWeb.sln --configuration Release
+
+    # --------------------------
+    # Publish the web project
+    # - Compiles and outputs files into myapp folder
+    # - Compress to app.zip for deployment
+    # --------------------------
     - name: dotnet publish
       run: |
         dotnet publish ./src/Web/Web.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
         cd ${{env.DOTNET_ROOT}}/myapp
         zip -r ../app.zip .
-    # upload the published website code artifacts
-    - name: Upload artifact for deployment job
+
+    # --------------------------
+    # Upload app.zip as artifact for next job
+    # --------------------------
+    - name: Upload artifact for deployment job (App)
       uses: actions/upload-artifact@v4
       with:
         name: .net-app
         path: ${{env.DOTNET_ROOT}}/app.zip
         
-    # upload the bicep template as artifacts for next job
-    - name: Upload artifact for deployment job
+    # --------------------------
+    # Upload Bicep template as artifact for next job
+    # --------------------------
+    - name: Upload artifact for deployment job (Bicep)
       uses: actions/upload-artifact@v4
       with:
         name: bicep-template
         path: ${{ env.TEMPLATE_FILE }}
         
-  # Use Bicep to deploy infrastructure + Publish webapp 
+# =========================================================
+# Job 2: Deploy infrastructure + publish app
+# =========================================================
   deploy:
     runs-on: ubuntu-latest
-    needs: buildandtest
+    needs: buildandtest   # depends on build job finishing first
     environment:
-      name: 'Development'
+      name: 'Development' # GitHub Environment (can store secrets, approvals, etc.)
     steps:
-    
-    #Download the publish files created in previous job
-    - name: Download artifact from build job
+    # --------------------------
+    # Download the app artifact (app.zip)
+    # --------------------------
+    - name: Download artifact from build job (App)
       uses: actions/download-artifact@v4
       with:
         name: .net-app
         path: .net-app
   
-    #Download the bicep templates from previous job
-    - name: Download artifact from build job
+    # --------------------------
+    # Download the Bicep template artifact
+    # --------------------------
+    - name: Download artifact from build job (Bicep)
       uses: actions/download-artifact@v4
       with:
         name: bicep-template
         path: bicep-template
         
-   #Login in your azure subscription using a service principal (credentials stored as GitHub Secret in repo)
+    # --------------------------
+    # Authenticate to Azure using Service Principal
+    # Credentials are stored in GitHub Secret: AZURE_CREDENTIALS
+    # --------------------------
     - name: Azure Login
       uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-           
-    # Deploy Azure WebApp using Bicep file
+
+    # --------------------------
+    # Deploy infrastructure using Bicep template
+    # - Uses arm-deploy action
+    # - Passes the "location" parameter
+    # - Captures deployment outputs (like webAppName)
+    # --------------------------
     - name: Deploy Azure WebApp
+      id: deploywebapp   # gives us reference to outputs
       uses: azure/arm-deploy@v2
       with:
         subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        resourceGroupName: rg-eshoponweb-eastus2
+        resourceGroupName: ${{ env.RESOURCE_GROUP }}
         template: bicep-template/webapp.bicep
         deploymentMode: Incremental
-        parameters: webAppName=devops-webapp-eastus-3185517919 location=eastus sku=S1
-    
-    # Publish website to Azure App Service (WebApp)
-    # Step disabled due to issue where the site sometimes can't be found: https://github.com/microsoft/pipelines-appservice-lib/issues/56. Instead deploy using CLI
-    - name: Publish Website to WebApp
-      if: false #Disable step due to comment above
-      uses: Azure/webapps-deploy@v3
-      with:
-        type: ZIP
-        app-name: ${{ env.WEBAPP_NAME  }}
-        package: .net-app/app.zip
+        parameters: location=${{ env.LOCATION }}
 
-    # Publish website to Azure App Service using CLI (WebApp)
+    # --------------------------
+    # Publish Website to the WebApp
+    # - Reads the webAppName from the Bicep output
+    # - Uses Azure CLI to deploy the zip package
+    # --------------------------
     - name: Publish Website to WebApp
       uses: Azure/cli@v2
       with:
         inlineScript: |
-             az webapp deploy --name ${{ env.WEBAPP_NAME }} --resource-group ${{ env.RESOURCE-GROUP }} --src-path .net-app/app.zip --type zip
+             # Extract webAppName from the output (remove quotes if any)
+             APP_NAME=$(echo "${{ steps.deploywebapp.outputs.webAppName }}" | tr -d '"')
+             echo "Deploying to $APP_NAME"
+
+             # Deploy the zip package to the WebApp
+             az webapp deploy \
+               --name $APP_NAME \
+               --resource-group ${{ env.RESOURCE_GROUP }} \
+               --src-path .net-app/app.zip \
+               --type zip
