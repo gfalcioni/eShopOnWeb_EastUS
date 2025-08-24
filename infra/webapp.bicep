@@ -1,22 +1,25 @@
-param webAppName string = 'devops-webapp-eastus-3185517919' //uniqueString(resourceGroup().id) // Generate unique String for web app name
-param sku string = 'S1' // The SKU of App Service Plan
-param location string = 'eastus' //resourceGroup().location
+param sku string = 'S1'
+param location string = resourceGroup().location
 
+// Gera um nome único para o WebApp baseado no resourceGroup
+var webAppName = 'eshop-${uniqueString(resourceGroup().id)}'
 var appServicePlanName = toLower('AppServicePlan-${webAppName}')
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   name: appServicePlanName
   location: location
-  properties: {
-    reserved: true
-  }
   sku: {
     name: sku
+    capacity: 1
+  }
+  properties: {
+    reserved: true // Linux App Service
   }
 }
+
 resource appService 'Microsoft.Web/sites@2022-09-01' = {
   name: webAppName
-  kind: 'app'
+  kind: 'app,linux'
   location: location
   properties: {
     serverFarmId: appServicePlan.id
@@ -35,3 +38,6 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
     }
   }
 }
+
+// 🔹 Output para capturar o nome do WebApp dinamicamente no pipeline
+output webAppName string = webAppName
