@@ -1,7 +1,7 @@
 # =========================================================
 # GitHub Actions Workflow - Build, Test, Deploy .NET + Bicep
 # =========================================================
-name: eShopOnWeb Build and Test eastus
+name: eShopOnWeb Build and Deploy eastus
 
 on: [push, workflow_dispatch]
 
@@ -10,6 +10,7 @@ env:
   LOCATION: eastus
   TEMPLATE_FILE: infra/webapp.bicep
   SUBSCRIPTION_ID: a94f2344-3f49-4d2c-801a-53bd6d540d09
+  WEBAPP_NAME: eshoponweb-eastus   # nome fixo determinístico
 
 # =========================================================
 # Job 1: Build and Test the .NET project
@@ -71,41 +72,27 @@ jobs:
           name: bicep-template
           path: bicep-template
 
-      - name: List files in bicep-template
-        run: ls -R bicep-template
-
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy Azure WebApp via Bicep
-        id: deploywebapp
         run: |
-          # Deploy sem capturar JSON
+          # Deploy sem tentar capturar output JSON
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --template-file ./bicep-template/webapp.bicep \
-            --parameters location=${{ env.LOCATION }} \
+            --parameters location=${{ env.LOCATION }} webAppName=${{ env.WEBAPP_NAME }} \
             --mode Incremental
-      
-          # Agora extrai o webAppName em um comando separado
-          WEBAPP_NAME=$(az deployment group show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name $(az deployment group list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv) \
-            --query "properties.outputs.webAppName.value" -o tsv)
-      
-          echo "webAppName=$WEBAPP_NAME" >> $GITHUB_OUTPUT
-
 
       - name: Publish Website to WebApp
         uses: Azure/cli@v2
         with:
           inlineScript: |
-            APP_NAME="${{ steps.deploywebapp.outputs.webAppName }}"
-            echo "Deploying to $APP_NAME"
+            echo "Deploying to ${{ env.WEBAPP_NAME }}"
             az webapp deploy \
-              --name $APP_NAME \
+              --name ${{ env.WEBAPP_NAME }} \
               --resource-group ${{ env.RESOURCE_GROUP }} \
               --src-path .net-app/app.zip \
               --type zip
