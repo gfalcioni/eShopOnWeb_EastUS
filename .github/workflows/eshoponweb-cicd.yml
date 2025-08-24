@@ -5,11 +5,11 @@ on: [push, workflow_dispatch]
 
 #Environment variables https://docs.github.com/en/actions/learn-github-actions/environment-variables
 env:
-  RESOURCE-GROUP: rg-eshoponweb-eastus
+  RESOURCE_GROUP: rg-eshoponweb-eastus
   LOCATION: eastus
-  TEMPLATE-FILE: infra/webapp.bicep
-  SUBSCRIPTION-ID: a94f2344-3f49-4d2c-801a-53bd6d540d09
-  WEBAPP-NAME: devops-webapp-eastus-10972110501
+  TEMPLATE_FILE: infra/webapp.bicep
+  SUBSCRIPTION_ID: a94f2344-3f49-4d2c-801a-53bd6d540d09
+  WEBAPP_NAME: devops-webapp-eastus-10972110501
 
 
 jobs:
@@ -47,7 +47,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: bicep-template
-        path: ${{ env.TEMPLATE-FILE }}
+        path: ${{ env.TEMPLATE_FILE }}
         
   # Use Bicep to deploy infrastructure + Publish webapp 
   deploy:
@@ -81,11 +81,11 @@ jobs:
     - name: deploy
       uses: azure/arm-deploy@v2
       with:
-        subscriptionId: ${{ env.SUBSCRIPTION-ID }}
+        subscriptionId: ${{ env.SUBSCRIPTION_ID }}
         resourceGroupName: ${{ env.RESOURCE-GROUP }}
         template: bicep-template/webapp.bicep
-        parameters: 'webAppName=${{ env.WEBAPP-NAME }}'
-        failOnStdErr: false   
+        parameters: 'webAppName=${{ env.WEBAPP_NAME }}'
+        #failOnStdErr: false   
     
     # Publish website to Azure App Service (WebApp)
     # Step disabled due to issue where the site sometimes can't be found: https://github.com/microsoft/pipelines-appservice-lib/issues/56. Instead deploy using CLI
@@ -94,7 +94,7 @@ jobs:
       uses: Azure/webapps-deploy@v3
       with:
         type: ZIP
-        app-name: ${{ env.WEBAPP-NAME  }}
+        app-name: ${{ env.WEBAPP_NAME  }}
         package: .net-app/app.zip
 
     # Publish website to Azure App Service using CLI (WebApp)
@@ -102,4 +102,4 @@ jobs:
       uses: Azure/cli@v2
       with:
         inlineScript: |
-             az webapp deploy --name ${{ env.WEBAPP-NAME }} --resource-group ${{ env.RESOURCE-GROUP }} --src-path .net-app/app.zip --type zip
+             az webapp deploy --name ${{ env.WEBAPP_NAME }} --resource-group ${{ env.RESOURCE-GROUP }} --src-path .net-app/app.zip --type zip
